@@ -157,38 +157,54 @@ with sync_playwright() as p:
     hover('.card-a .inv:nth-child(2)', 800, 1400)
     cap('', '')
 
-    # ---------- 8. mobile ----------
+    # ---------- 8. mobile app ----------
     pg.goto(BASE + 'showcase.html'); wait(300)
-    fr = pg.frame_locator('#ph')
-    frame = pg.frames[1] if len(pg.frames) > 1 else None
-    for _ in range(40):
-        frame = next((f for f in pg.frames if f.url.endswith('index.html#/')), None)
-        if frame: break
+    frame = None
+    for _ in range(60):
+        frame = next((f for f in pg.frames if 'mobile.html' in f.url), None)
+        if frame:
+            try: frame.wait_for_function('window.MOBILE', timeout=500); break
+            except Exception: pass
         wait(100)
-    frame.evaluate('LOOMERA.reset()'); frame.evaluate('location.reload()'); wait(1200)
-    frame = next(f for f in pg.frames if 'index.html' in f.url)
-    pg.mouse.move(*cur); setcur(); wait(1200)
+    frame.evaluate('MOBILE.reset()'); wait(300)
+    pg.mouse.move(*cur); setcur()
+    cap('09', 'Mobile app: tab bar, banners, categories')
     def fclick(sel, ms=650, pause=500):
         loc = frame.locator(sel).first; loc.scroll_into_view_if_needed(); wait(150)
         bb = loc.bounding_box(); x, y = bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] / 2
         move(x, y, ms); wait(120); pg.evaluate('([x,y]) => __rip(x,y)', [x, y]); pg.mouse.click(x, y); wait(pause)
-    def fscroll(dy, ms=1200):
-        bb = pg.locator('#ph').bounding_box(); move(bb['x'] + 200, bb['y'] + 500, 500)
+    def fscroll(sel, dy, ms=1200, dx=0):
+        bb = frame.locator(sel).first.bounding_box(); move(bb['x'] + bb['width'] / 2, bb['y'] + min(bb['height'] / 2, 300), 500)
         steps = int(ms / 16)
-        for i in range(steps): pg.mouse.wheel(0, dy / steps); wait(16)
-    fscroll(700, 1600); wait(600)
-    fscroll(1100, 1600); wait(700)
-    fclick('.card[data-id="trail-bottle"] .media', 700, 1300)
-    fclick('#var-sw button:nth-child(2)', 600, 900)
-    fclick('#var-sw button:nth-child(3)', 500, 900)
-    fclick('#add', 700, 1900)
-    fscroll(0, 100); wait(800)
+        for i in range(steps): pg.mouse.wheel(dx / steps, dy / steps); wait(16)
+    wait(2600)                                     # banner auto-advances
+    fclick('.cat[data-cat="scents"]', 800, 900)
+    fscroll('#home-scroll', 520, 1300); wait(700)
+    fclick('.cat[data-cat="all"]', 700, 600)
+    fscroll('#home-scroll', -200, 700); wait(300)
+    fclick('.hlist .pc:nth-child(3) .im', 700, 1100)
+    cap('10', 'Product screen: swipe gallery, pick colour, add to bag')
+    fscroll('#slides', 0, 900, dx=360); wait(700)
+    fscroll('#slides', 0, 600, dx=-360); wait(300)
+    fclick('.vchip[data-v="2"]', 700, 900)
+    fclick('.vchip[data-v="0"]', 600, 800)
+    fclick('#qp', 600, 500)
+    fclick('#addb', 600, 900)
+    fclick('[data-viewbag]', 600, 1100)
+    cap('11', 'Bag, coupon & app checkout with saved address')
+    fclick('#coupon', 700, 1200)
+    fclick('#tocheck', 700, 1200)
+    fclick('.slot[data-slot="1"]', 700, 700)
+    fclick('.pay[data-pay="card"]', 600, 600)
+    fclick('.pay[data-pay="upi"]', 600, 600)
+    fclick('#paybtn', 700, 4200)
+    cap('', '')
 
     # ---------- outro ----------
     pg.goto(BASE + 'index.html#/'); wait(200)
     pg.evaluate("""__title(`<div class="fade-in"><div class="logo"><span class="mark">${'<svg class="i" viewBox="0 0 24 24">'+ICONS.leaf+'</svg>'}</span>Loomera</div>
       <h2>Storefront · Cart · Checkout · Tracking · Admin</h2>
-      <div class="stack"><span>HTML · CSS · JavaScript</span><span>Single-page app with hash routing</span><span>Responsive, mobile-first</span><span>3D-rendered product photography</span></div>
+      <div class="stack"><span>HTML · CSS · JavaScript</span><span>Single-page app with hash routing</span><span>Native-style mobile app UI</span><span>3D-rendered product photography</span></div>
       <div class="by">Demo project by Gunjan Khandelwal · Open to freelance e-commerce work</div></div>`)""")
     wait(4500)
     cdp.send('Page.stopScreencast'); wait(300)
