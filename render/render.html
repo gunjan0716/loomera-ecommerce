@@ -1,0 +1,199 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const S = 900;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(S, S);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+document.body.appendChild(renderer.domElement);
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const V = (x, y) => new THREE.Vector2(x, y);
+function smooth(pts, n = 90) { // catmull-rom through control points
+  const c = new THREE.SplineCurve(pts); return c.getPoints(n);
+}
+function lathe(pts, seg = 128) { const g = new THREE.LatheGeometry(pts, seg); g.computeVertexNormals(); return g; }
+function ceramic(color, opts = {}) {
+  return new THREE.MeshPhysicalMaterial({ color, roughness: opts.r ?? 0.55, clearcoat: opts.cc ?? 0.35, clearcoatRoughness: 0.35, sheen: 0.2, envMapIntensity: 0.9 });
+}
+function speckle(base, dots = '#3b2f28', amount = 2200) { // speckled stoneware texture
+  const c = document.createElement('canvas'); c.width = c.height = 1024; const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, 1024, 1024);
+  for (let i = 0; i < amount; i++) { g.globalAlpha = Math.random() * 0.6 + 0.2; g.fillStyle = dots; const r = Math.random() * 1.8 + 0.4; g.beginPath(); g.arc(Math.random() * 1024, Math.random() * 1024, r, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+function stoneware(base, opts = {}) { const m = ceramic('#bdb4a8', opts); m.map = speckle(base, opts.dots, opts.amount); return m; }
+const glass = (tint = '#ffffff', op = 0.0) => new THREE.MeshPhysicalMaterial({ color: tint, roughness: 0.04, transmission: 1, thickness: 0.4, ior: 1.5, envMapIntensity: 1.3, transparent: true, opacity: 1 });
+const metal = (color, r = 0.3) => new THREE.MeshStandardMaterial({ color, metalness: 1, roughness: r });
+const matte = (color, r = 0.8) => new THREE.MeshStandardMaterial({ color, roughness: r });
+
+function shadowed(o) { o.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); return o; }
+
+// ---------- product builders (units ~ cm/10) ----------
+const P = {
+  mug(c) {
+    const g = new THREE.Group();
+    const outer = [V(0, 0), V(0.78, 0), V(0.86, 0.06), V(0.9, 0.3), V(0.9, 1.75), V(0.88, 1.82), V(0.82, 1.82), V(0.82, 0.16), V(0, 0.16)];
+    g.add(new THREE.Mesh(lathe(outer), stoneware(c.base, c)));
+    const h = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.09, 32, 80, Math.PI * 1.15), stoneware(c.base, c));
+    h.rotation.z = -Math.PI * 0.575; h.position.set(0.93, 0.95, 0); h.scale.set(1, 1.15, 1.4); g.add(h);
+    // coffee
+    const coffee = new THREE.Mesh(new THREE.CircleGeometry(0.81, 64), new THREE.MeshPhysicalMaterial({ color: '#2a160b', roughness: 0.15, clearcoat: 1 }));
+    coffee.rotation.x = -Math.PI / 2; coffee.position.y = 1.55; g.add(coffee);
+    return g;
+  },
+  vase(c) {
+    const pts = smooth([V(0.0001, 0), V(0.7, 0.02), V(1.05, 0.7), V(1.0, 1.6), V(0.55, 2.4), V(0.38, 3.0), V(0.46, 3.35)]);
+    pts.push(V(0.4, 3.35), V(0.3, 3.0));
+    return new THREE.Group().add(new THREE.Mesh(lathe(pts), stoneware(c.base, c)));
+  },
+  budvase(c) {
+    const pts = smooth([V(0.0001, 0), V(0.55, 0.02), V(0.78, 0.45), V(0.7, 1.0), V(0.22, 1.55), V(0.16, 2.0), V(0.22, 2.25)]);
+    pts.push(V(0.15, 2.25));
+    const g = new THREE.Group().add(new THREE.Mesh(lathe(pts), ceramic(c.base, { r: 0.35, cc: 0.8 })));
+    // dried stem
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, 2.2, 8), matte('#8a7a55'));
+    stem.position.set(0.05, 2.9, 0); stem.rotation.z = -0.08; g.add(stem);
+    for (let i = 0; i < 26; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.05 + Math.random() * 0.03, 10, 10), matte('#d8c7a1', 0.9)); const a = Math.random() * 6.28, y = 3.55 + Math.random() * 0.45; s.position.set(Math.cos(a) * 0.13 + 0.02, y, Math.sin(a) * 0.13); s.scale.y = 1.5; g.add(s); }
+    return g;
+  },
+  candle(c) {
+    const g = new THREE.Group();
+    const jarPts = [V(0.0001, 0), V(0.82, 0), V(0.86, 0.05), V(0.86, 1.9), V(0.8, 1.9), V(0.8, 0.08), V(0.0001, 0.08)];
+    const jar = new THREE.Mesh(lathe(jarPts), new THREE.MeshPhysicalMaterial({ color: c.glass, roughness: 0.08, transmission: 0.55, thickness: 0.3, ior: 1.5, clearcoat: 1, envMapIntensity: 1.4 }));
+    g.add(jar);
+    const wax = new THREE.Mesh(new THREE.CylinderGeometry(0.79, 0.79, 1.45, 96), new THREE.MeshPhysicalMaterial({ color: c.wax, roughness: 0.7, sheen: 0.6, sheenColor: '#fff' }));
+    wax.position.y = 0.08 + 0.725; g.add(wax);
+    const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.22, 8), matte('#1f1a17')); wick.position.y = 1.63; wick.rotation.z = 0.15; g.add(wick);
+    // label
+    const lc = document.createElement('canvas'); lc.width = 1024; lc.height = 256; const x = lc.getContext('2d');
+    x.fillStyle = '#f6f1e8'; x.fillRect(0, 0, 1024, 256); x.fillStyle = '#2b2620'; x.textAlign = 'center';
+    x.font = '600 62px Georgia'; x.fillText('LOOMERA', 512, 112); x.font = 'italic 40px Georgia'; x.fillText(c.label, 512, 180);
+    const lt = new THREE.CanvasTexture(lc); lt.colorSpace = THREE.SRGBColorSpace;
+    const label = new THREE.Mesh(new THREE.CylinderGeometry(0.875, 0.875, 0.62, 96, 1, true, -Math.PI * 0.5, Math.PI), new THREE.MeshStandardMaterial({ map: lt, roughness: 0.9, side: THREE.DoubleSide }));
+     label.position.y = 0.85; label.rotation.y = 0; g.add(label);
+    return g;
+  },
+  bottle(c) {
+    const g = new THREE.Group();
+    const body = smooth([V(0.0001, 0), V(0.6, 0.0), V(0.66, 0.08), V(0.66, 2.55), V(0.55, 2.85), V(0.36, 3.0)], 60);
+    body.push(V(0.0001, 3.0));
+    g.add(new THREE.Mesh(lathe(body), new THREE.MeshPhysicalMaterial({ color: c.base, roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.4 })));
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.12, 64), metal('#c9c9c9', 0.25)); band.position.y = 3.06; g.add(band);
+    const cap = new THREE.Mesh(new RoundedBoxGeometry(0.74, 0.5, 0.74, 6, 0.2), new THREE.MeshPhysicalMaterial({ color: c.cap, roughness: 0.5 }));
+    cap.scale.set(1, 1, 1); cap.position.y = 3.36; g.add(cap);
+    const capc = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.5, 64), new THREE.MeshPhysicalMaterial({ color: c.cap, roughness: 0.5 })); capc.position.y = 3.36; g.add(capc); cap.visible = false;
+    const loop = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.05, 16, 48), new THREE.MeshPhysicalMaterial({ color: c.cap, roughness: 0.5 })); loop.position.y = 3.7; g.add(loop);
+    return g;
+  },
+  dripper(c) {
+    const g = new THREE.Group();
+    const pts = [V(0.0001, 0.35), V(0.42, 0.35), V(0.5, 0.42), V(1.15, 1.45), V(1.2, 1.5), V(1.12, 1.52), V(0.48, 0.5), V(0.0001, 0.5)];
+    g.add(new THREE.Mesh(lathe(pts), ceramic(c.base, { r: 0.3, cc: 0.9 })));
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.08, 96), ceramic(c.base, { r: 0.3, cc: 0.9 })); base.position.y = 0.32; g.add(base);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.42, 0.3, 64), ceramic(c.base, { r: 0.3, cc: 0.9 })); foot.position.y = 0.14; g.add(foot);
+    return g;
+  },
+  planter(c) {
+    const g = new THREE.Group();
+    const pts = [V(0.0001, 0.12), V(0.62, 0.12), V(0.85, 1.35), V(0.95, 1.4), V(0.9, 1.45), V(0.8, 1.42), V(0.8, 1.3), V(0.0001, 1.3)];
+    g.add(new THREE.Mesh(lathe(pts), stoneware(c.base, c)));
+    const sau = new THREE.Mesh(lathe([V(0.0001, 0), V(0.78, 0), V(0.85, 0.14), V(0.8, 0.15), V(0.0001, 0.06)]), stoneware(c.base, c)); g.add(sau);
+    // succulent: rosette of leaves
+    const leafMat = new THREE.MeshPhysicalMaterial({ color: '#7f9d7a', roughness: 0.55, sheen: 0.5, sheenColor: '#dfe9d8' });
+    for (let ring = 0; ring < 4; ring++) {
+      const n = 7 + ring * 2, len = 0.62 - ring * 0.12, tilt = 1.15 - ring * 0.28;
+      for (let i = 0; i < n; i++) {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), leafMat);
+        leaf.scale.set(0.15 - ring * 0.02, 0.06, len / 2);
+        const piv = new THREE.Group(); piv.position.y = 1.42 + ring * 0.05; piv.rotation.y = (i / n) * Math.PI * 2 + ring * 0.4;
+        const arm = new THREE.Group(); arm.rotation.x = -tilt + Math.PI / 2 - Math.PI / 2; arm.rotation.x = -(Math.PI / 2 - tilt);
+        leaf.position.z = len / 2; arm.add(leaf); piv.add(arm); g.add(piv);
+      }
+    }
+    return g;
+  },
+  bowl(c) {
+    const g = new THREE.Group();
+    const pts = smooth([V(0.0001, 0), V(0.5, 0), V(0.62, 0.08), V(1.2, 0.55), V(1.55, 1.0)], 60);
+    const inner = smooth([V(1.5, 1.0), V(1.15, 0.6), V(0.6, 0.18), V(0.0001, 0.12)], 60);
+    g.add(new THREE.Mesh(lathe([...pts, ...inner]), stoneware(c.base, c)));
+    // fruit
+    const fruit = [['#e0a13a', 0.32, [0.25, 0.62, 0.1]], ['#d9572b', 0.3, [-0.35, 0.6, 0.15]], ['#b9c25a', 0.28, [0.0, 0.62, -0.38]], ['#e3a73f', 0.3, [-0.05, 0.92, 0.0]]];
+    fruit.forEach(([col, r, p]) => { const f = new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.45, clearcoat: 0.5 })); f.position.set(...p); g.add(f); });
+    return g;
+  },
+  lamp(c) {
+    const g = new THREE.Group();
+    const base = smooth([V(0.0001, 0), V(0.55, 0.0), V(0.75, 0.5), V(0.62, 1.15), V(0.2, 1.45), V(0.12, 1.55)], 60); base.push(V(0.0001, 1.55));
+    g.add(new THREE.Mesh(lathe(base), ceramic(c.base, { r: 0.4, cc: 0.7 })));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 16), metal('#b8935a', 0.35)); pole.position.y = 1.8; g.add(pole);
+    const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 1.0, 1.05, 96, 1, true), new THREE.MeshPhysicalMaterial({ color: '#e6dccb', roughness: 0.95, side: THREE.DoubleSide, emissive: '#ffd9a0', emissiveIntensity: 0.06 }));
+    shade.position.y = 2.45; g.add(shade);
+    return g;
+  },
+  diffuser(c) {
+    const g = new THREE.Group();
+    const pts = smooth([V(0.0001, 0), V(0.62, 0), V(0.72, 0.4), V(0.7, 1.1), V(0.3, 1.45), V(0.2, 1.62)], 60); pts.push(V(0.18, 1.62), V(0.0001, 1.5));
+    g.add(new THREE.Mesh(lathe(pts), new THREE.MeshPhysicalMaterial({ color: c.glass, roughness: 0.05, transmission: 0.7, thickness: 0.6, ior: 1.5, clearcoat: 1 })));
+    const liquid = new THREE.Mesh(lathe(smooth([V(0.0001, 0.05), V(0.58, 0.05), V(0.66, 0.4), V(0.65, 0.8)], 30).concat([V(0.0001, 0.8)])), new THREE.MeshPhysicalMaterial({ color: c.liquid, roughness: 0.1, transmission: 0.4, thickness: 1 }));
+    g.add(liquid);
+    for (let i = 0; i < 7; i++) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.6, 8), matte('#2b2018', 0.9)); const a = i / 7 * 6.28; r.position.set(Math.cos(a) * 0.06, 2.6, Math.sin(a) * 0.06); r.rotation.z = Math.cos(a) * 0.22; r.rotation.x = Math.sin(a) * 0.22; g.add(r); }
+    return g;
+  },
+  plates(c) {
+    const g = new THREE.Group();
+    const plate = (r, y) => { const pts = smooth([V(0.0001, 0), V(r * 0.6, 0), V(r * 0.68, 0.05), V(r * 0.95, 0.14), V(r, 0.17)], 40).concat(smooth([V(r * 0.97, 0.19), V(r * 0.7, 0.1), V(0.0001, 0.08)], 30)); const m = new THREE.Mesh(lathe(pts), stoneware(c.base, c)); m.position.y = y; return m; };
+    [0, 0.2, 0.4, 0.6].forEach((y, i) => g.add(plate(1.75 - (i === 3 ? 0.45 : 0), y)));
+    return g;
+  },
+  carafe(c) {
+    const g = new THREE.Group();
+    const pts = smooth([V(0.0001, 0), V(0.8, 0), V(0.9, 0.5), V(0.85, 1.4), V(0.4, 2.2), V(0.32, 2.7), V(0.36, 2.9)], 80); pts.push(V(0.31, 2.9), V(0.27, 2.7), V(0.35, 2.2), V(0.79, 1.4), V(0.84, 0.5), V(0.75, 0.06), V(0.0001, 0.06));
+    g.add(new THREE.Mesh(lathe(pts), new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.03, transmission: 1, thickness: 0.15, ior: 1.5, envMapIntensity: 1.5 })));
+    const water = new THREE.Mesh(lathe(smooth([V(0.0001, 0.06), V(0.74, 0.06), V(0.83, 0.5), V(0.8, 1.2)], 30).concat([V(0.0001, 1.2)])), new THREE.MeshPhysicalMaterial({ color: '#e8f4f6', roughness: 0.02, transmission: 1, thickness: 1.5, ior: 1.33 }));
+    g.add(water);
+    const cup = new THREE.Mesh(lathe([V(0.0001, 0), V(0.3, 0), V(0.36, 0.6), V(0.33, 0.6), V(0.27, 0.04), V(0.0001, 0.04)]), new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.03, transmission: 1, thickness: 0.1 }));
+    cup.position.y = 2.88; g.add(cup);
+    return g;
+  },
+};
+
+// ---------- scene per render ----------
+window.renderProduct = async function (kind, cfg, bg, camOpts = {}) {
+  const scene = new THREE.Scene();
+  scene.environment = envTex; scene.background = new THREE.Color(bg);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.18 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  // soft cyclorama tint
+  const key = new THREE.DirectionalLight('#fff6ea', 2.2); key.position.set(-4, 9, 6); key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 14; key.shadow.blurSamples = 25; key.shadow.camera.left = -6; key.shadow.camera.right = 6; key.shadow.camera.top = 6; key.shadow.camera.bottom = -6; key.shadow.bias = -0.0004;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight('#dfe8ff', 0.5); fill.position.set(6, 3, 4); scene.add(fill);
+  const obj = shadowed(P[kind](cfg)); scene.add(obj);
+  const box = new THREE.Box3().setFromObject(obj); const size = box.getSize(new THREE.Vector3()); const ctr = box.getCenter(new THREE.Vector3());
+  const h = Math.max(size.y, size.x * 0.9);
+  const cam = new THREE.PerspectiveCamera(28, 1, 0.1, 200);
+  const dist = h / (2 * Math.tan(THREE.MathUtils.degToRad(14))) * (camOpts.zoom ?? 1.55);
+  const el = camOpts.el ?? 0.22, az = camOpts.az ?? 0.35;
+  cam.position.set(ctr.x + Math.sin(az) * dist * Math.cos(el), ctr.y + Math.sin(el) * dist, ctr.z + Math.cos(az) * dist * Math.cos(el));
+  cam.lookAt(ctr.x, ctr.y - size.y * 0.04, ctr.z);
+  if (camOpts.rotY) obj.rotation.y = camOpts.rotY;
+  renderer.render(scene, cam);
+  return renderer.domElement.toDataURL('image/jpeg', 0.92);
+};
+window.ready = true;
+</script>
+</body></html>
