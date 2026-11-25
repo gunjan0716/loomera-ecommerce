@@ -3,6 +3,7 @@
 A complete online store for a fictional home and kitchen brand. It covers the full shopping journey, from browsing to checkout, plus an admin dashboard for the store owner.
 
 **▶ Live demo:** https://gunjan0716.github.io/loomera-ecommerce/
+**📱 Mobile app demo:** https://gunjan0716.github.io/loomera-ecommerce/app/mobile.html
 **🎬 Walkthrough video:** [`demo/loomera-demo.mp4`](demo/loomera-demo.mp4)
 
 ![Loomera storefront](app/img/cover.jpg)
@@ -24,7 +25,8 @@ A complete online store for a fictional home and kitchen brand. It covers the fu
 | **Checkout** | Address form with step progress, Standard / Express delivery, UPI / card / cash-on-delivery (test mode), live order summary |
 | **Order confirmation** | Order ID, delivery estimate and a tracking timeline (Placed → Packed → Shipped → Delivered) |
 | **Admin dashboard** | Revenue, orders, AOV and conversion KPIs, a 7-day revenue chart, top products, recent orders (new orders appear in real time) and low-stock alerts |
-| **Responsive** | Mobile-first layout with a bottom tab bar and full-screen bag on phones |
+| **Mobile app UI** | Native-style app (`app/mobile.html`): status bar, bottom tab navigation, auto-advancing promo banners, category chips, slide-in screens, swipeable product gallery, sticky Add-to-bag bar, snackbar, bag with bill details, saved-address checkout and order tracking |
+| **Responsive** | The web storefront also adapts to phones and tablets |
 
 ## Tech
 - **HTML, CSS and vanilla JavaScript** single-page app with hash routing; no framework and no build step
@@ -41,6 +43,7 @@ app/
   data.js         product catalogue and sample orders
   styles.css      design system and responsive layout
   icons.js        Lucide icon paths
+  mobile.html     native-style mobile app UI
   showcase.html   phone mock-up used in the video
   img/  fonts/
 render/           three.js product renderer (render.html + render.py)
@@ -51,7 +54,8 @@ demo/             walkthrough video
 ## Run locally
 ```bash
 python3 -m http.server 8765
-# open http://localhost:8765/app/
+# open http://localhost:8765/app/          (web store)
+# open http://localhost:8765/app/mobile.html  (mobile app, best at phone size)
 ```
 Try the coupon **WELCOME10** and any 6-digit pincode, such as `302001`.
 
